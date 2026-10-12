@@ -1,6 +1,7 @@
 name: Update devenv.lock
 
-# Weekly bump of devenv.lock, committed straight to main once the new environment passes tests and build.
+# Weekly bump of devenv.lock as a PR, merged once the new environment passes tests and build.
+# PRs opened with GITHUB_TOKEN don't trigger CI, so the checks run here before the PR is opened.
 on:
   schedule:
     - cron: "0 6 * * 1"
@@ -8,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -32,8 +34,13 @@ jobs:
         run: devenv shell -- bash -c "npm test && npm run build"
 
       - if: steps.diff.outputs.changed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c devenv-update
           git commit -m "Update devenv.lock" devenv.lock
-          git push
+          git push --force origin devenv-update
+          gh pr create --title "Update devenv.lock" --body "Weekly \`devenv update\`. Tests and build passed in the updated environment." --head devenv-update
+          gh pr merge --squash --delete-branch devenv-update

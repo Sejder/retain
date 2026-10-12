@@ -87,6 +87,52 @@ async function waitFor(expression, timeout = 15000) {
 	throw new Error(`timeout waiting for ${expression}`);
 }
 
+/** Attaches to another window (e.g. Obsidian 1.13+ opens Settings as a pop-out). */
+async function attachTo(match, timeout = 10000) {
+	const end = Date.now() + timeout;
+	while (Date.now() < end) {
+		const targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
+		const t = targets.find((t) => t.type === "page" && match(t));
+		if (t) {
+			const sock = new WebSocket(t.webSocketDebuggerUrl);
+			await new Promise((r, j) => ((sock.onopen = r), (sock.onerror = j)));
+			let n = 0;
+			const waiting = new Map();
+			sock.onmessage = (m) => {
+				const msg = JSON.parse(m.data);
+				if (msg.id && waiting.has(msg.id)) waiting.get(msg.id)(msg);
+			};
+			const call = (method, params = {}) =>
+				new Promise((r) => {
+					waiting.set(++n, r);
+					sock.send(JSON.stringify({ id: n, method, params }));
+				});
+			const run = async (expression) =>
+				(await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true })).result?.result?.value;
+			return {
+				js: run,
+				async waitFor(expression, ms = 10000) {
+					const stop = Date.now() + ms;
+					while (Date.now() < stop) {
+						if (await run(`!!(${expression})`)) return;
+						await sleep(200);
+					}
+					throw new Error(`timeout waiting for ${expression} in pop-out`);
+				},
+				async shot(name) {
+					await sleep(500);
+					const { result } = await call("Page.captureScreenshot", { format: "png" });
+					writeFileSync(join(OUT, `${name}.png`), Buffer.from(result.data, "base64"));
+					console.log(`  ${name}.png`);
+				},
+				close: () => sock.close(),
+			};
+		}
+		await sleep(300);
+	}
+	throw new Error("pop-out window not found");
+}
+
 async function viewport(width, height, scale, mobile = false) {
 	await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: scale, mobile });
 	await sleep(300);
@@ -173,6 +219,20 @@ try {
 		await js("app.commands.executeCommandById('retain:review')");
 		await waitFor("document.querySelector('.retain-deck-row:not(.retain-deck-head)')");
 		ok = (await check("decks")) && ok;
+		const misaligned = await js(`(() => {
+			const center = (el) => { const r = el.getBoundingClientRect(); return (r.left + r.right) / 2; };
+			const head = [...document.querySelectorAll('.retain-deck-head .retain-count')].map(center);
+			const off = [];
+			for (const row of document.querySelectorAll('.retain-deck-row:not(.retain-deck-head)')) {
+				[...row.querySelectorAll('.retain-count')].forEach((c, i) => {
+					const d = Math.abs(center(c) - head[i]);
+					if (d > 2) off.push(Math.round(d));
+				});
+			}
+			return off;
+		})()`);
+		console.log(`  columns aligned: ${misaligned.length ? "FAIL offsets " + misaligned.join(",") : "ok"}`);
+		ok = ok && misaligned.length === 0;
 		await shot(`decks-${suffix}`);
 
 		await closeModals();
@@ -192,6 +252,21 @@ try {
 		await shot(`stats-${suffix}`);
 		await closeModals();
 	}
+
+	console.log("settings");
+	await closeModals();
+	await theme("obsidian");
+	await js("app.setting.open(); app.setting.openTabById('retain')");
+	const settingsWin = await attachTo((t) => !t.url.includes("index.html"));
+	await settingsWin.waitFor("document.querySelector('.vertical-tab-content .setting-item-name')");
+	const names = await settingsWin.js("[...document.querySelectorAll('.vertical-tab-content .setting-item-name')].map((e) => e.textContent)");
+	const expected = ["Flashcard tag", "Separator", "New cards per day", "Target retention", "Maximum interval", "Fuzz intervals", "Show interval previews"];
+	const settingsOk = expected.every((n) => names.filter((x) => x === n).length === 1);
+	console.log(`  settings rendered once each: ${settingsOk ? "ok" : "FAIL " + JSON.stringify(names)}`);
+	ok = ok && settingsOk;
+	await settingsWin.shot("settings-dark");
+	settingsWin.close();
+	await js("app.setting.close()");
 
 	console.log("interactions (dark)");
 	await theme("obsidian");
@@ -269,6 +344,9 @@ try {
 } catch (e) {
 	ok = false;
 	console.error(e);
+	await shot("error").catch(() => {});
+	const dom = await js(`[...document.querySelectorAll('.modal-container .modal *')].slice(0, 60).map((e) => e.tagName.toLowerCase() + '.' + [...e.classList].join('.')).join('\\n')`).catch(() => "");
+	console.error(dom);
 } finally {
 	const relevant = errors.filter((e) => /retain/i.test(e));
 	console.log(`console errors mentioning retain: ${relevant.length}`);

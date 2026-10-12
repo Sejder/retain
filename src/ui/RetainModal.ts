@@ -64,6 +64,7 @@ export class RetainModal extends Modal {
 		this.review = null;
 		const { contentEl } = this;
 		contentEl.empty();
+		this.modalEl.addClass("retain-fit");
 
 		const h = header(contentEl, "layers", "Decks");
 		new DropdownComponent(h.right)
@@ -133,6 +134,7 @@ export class RetainModal extends Modal {
 	startReview(filter: CardFilter, label: string): void {
 		this.review?.destroy();
 		this.contentEl.empty();
+		this.modalEl.removeClass("retain-fit");
 		this.review = new ReviewView(this.plugin, this, this.contentEl, filter, label, this.mode);
 	}
 }

@@ -1,4 +1,4 @@
-import { Component, MarkdownRenderer, Notice, setIcon } from "obsidian";
+import { Component, debounce, MarkdownRenderer, Notice, setIcon } from "obsidian";
 import { Grade, Rating } from "ts-fsrs";
 import type RetainPlugin from "../main";
 import { buildCramQueue, buildReviewQueue, CardFilter, Session } from "../queue";
@@ -26,6 +26,8 @@ export class ReviewView {
 	private revealed = false;
 	private editing = false;
 	private undoStack: UndoEntry[] = [];
+	/** Cards graded this session, for the progress bar. */
+	private reviewed = 0;
 	private component = new Component();
 
 	constructor(
@@ -66,7 +68,7 @@ export class ReviewView {
 			return false;
 		}
 		const n = Number(evt.key);
-		if (this.revealed && n >= 1 && n <= 4) return this.grade(n as Grade), false;
+		if (this.revealed && n >= 1 && n <= 4) return this.grade(GRADES[n - 1]), false;
 		switch (evt.key.toLowerCase()) {
 			case "u":
 				return this.undo(), false;
@@ -114,12 +116,14 @@ export class ReviewView {
 			this.undoStack.push({ id: card.id, snap });
 			this.plugin.changed();
 		}
+		this.reviewed++;
 		this.nextCard();
 	}
 
 	private undo(): void {
 		const entry = this.undoStack.pop();
 		if (!entry) return;
+		this.reviewed--;
 		if (this.current) this.session.putBack(this.current.id);
 		if (entry.snap) {
 			this.plugin.store.restore(entry.snap);
@@ -163,6 +167,12 @@ export class ReviewView {
 		}
 		iconButton(h.right, "x", "Close", () => this.modal.close());
 
+		const total = this.reviewed + this.session.remaining + (this.current ? 1 : 0);
+		const progress = this.el.createDiv({ cls: "retain-progress", attr: { role: "progressbar" } });
+		progress.createDiv("retain-progress-fill").setCssProps({
+			"--retain-progress": `${total ? (100 * this.reviewed) / total : 100}%`,
+		});
+
 		if (!this.current) {
 			const done = this.el.createDiv("retain-done");
 			done.createDiv({ cls: "retain-done-title", text: "All done for now" });
@@ -176,7 +186,7 @@ export class ReviewView {
 
 		if (this.editing) return this.renderEditor(this.current);
 
-		const body = this.el.createDiv("retain-card");
+		const body = this.el.createDiv("retain-card").createDiv("retain-card-inner");
 		if (this.mode === "cram") body.createDiv({ cls: "retain-badge", text: "Cram: schedule unchanged" });
 		else if (this.plugin.store.isNew(this.current.id)) body.createDiv({ cls: "retain-badge", text: "New" });
 		this.renderMarkdown(body.createDiv("retain-question"), this.current.question);
@@ -202,13 +212,9 @@ export class ReviewView {
 
 	private renderEditor(card: LiveCard): void {
 		const form = this.el.createDiv("retain-card retain-editor");
-		form.createEl("label", { text: "Question" });
-		const q = form.createEl("textarea", { cls: "retain-edit-input" });
-		q.value = card.question;
-		form.createEl("label", { text: "Answer" });
-		const a = form.createEl("textarea", { cls: "retain-edit-input" });
-		a.value = card.answer;
-		form.createDiv({ cls: "retain-edit-hint", text: "Cards are single-line; line breaks become spaces." });
+		const q = this.editField(form, "Question", card.question, card.path);
+		const a = this.editField(form, "Answer", card.answer, card.path);
+		form.createDiv({ cls: "retain-edit-hint", text: "Cards are single-line; line breaks become spaces. Ctrl/Cmd+Enter saves." });
 
 		const save = async () => {
 			const oneLine = (s: string) => s.replace(/\s*\n\s*/g, " ").trim();
@@ -241,6 +247,28 @@ export class ReviewView {
 			}
 		});
 		window.setTimeout(() => q.focus(), 0);
+	}
+
+	/** A text field with a rendered preview underneath that follows what you type. */
+	private editField(form: HTMLElement, label: string, value: string, path: string): HTMLTextAreaElement {
+		const field = form.createDiv("retain-edit-field");
+		field.createEl("label", { text: label });
+		const input = field.createEl("textarea", { cls: "retain-edit-input", attr: { rows: "2", "aria-label": label } });
+		input.value = value;
+		const preview = field.createDiv({ cls: "retain-edit-preview markdown-rendered", attr: { "aria-label": `${label} preview` } });
+		let rendered: Component | null = null;
+		const update = () => {
+			if (rendered) this.component.removeChild(rendered);
+			rendered = this.component.addChild(new Component());
+			preview.empty();
+			const md = input.value.replace(/\s*\n\s*/g, " ").trim();
+			preview.toggleClass("is-empty", !md);
+			if (md) void MarkdownRenderer.render(this.plugin.app, md, preview, path, rendered);
+			else preview.setText("Nothing to preview");
+		};
+		update();
+		input.addEventListener("input", debounce(update, 150, true));
+		return input;
 	}
 
 	private renderMarkdown(el: HTMLElement, md: string): void {

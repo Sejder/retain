@@ -25,6 +25,12 @@
 	padding: 0;
 }
 
+/* Deck list: size to content instead of a fixed tall box */
+.retain-modal.retain-fit:not(.retain-mobile) {
+	height: auto;
+	max-height: min(720px, 86vh);
+}
+
 .retain-modal.retain-stats {
 	width: min(720px, 92vw);
 	height: auto;
@@ -88,13 +94,15 @@
 
 /* Deck list */
 .retain-deck-list {
+	--retain-col: 4rem;
 	overflow-y: auto;
 	padding: var(--size-4-2) var(--size-4-3) var(--size-4-4);
 }
 
 .retain-deck-row {
 	display: grid;
-	grid-template-columns: 1fr repeat(3, 3.6em);
+	/* rem, not em: the header row has a smaller font, and columns must line up */
+	grid-template-columns: minmax(0, 1fr) repeat(3, var(--retain-col));
 	align-items: center;
 	gap: var(--size-4-2);
 	padding: var(--size-4-1) var(--size-4-2);
@@ -141,12 +149,13 @@
 }
 
 .retain-count {
-	text-align: right;
+	text-align: center;
 	font-variant-numeric: tabular-nums;
 }
 
 .retain-deck-head .retain-count {
-	text-align: right;
+	/* letter-spacing adds trailing space after the last letter; cancel it so labels center over the numbers */
+	margin-right: -0.05em;
 }
 
 .retain-deck-row:not(.retain-deck-head) .retain-due {
@@ -174,13 +183,35 @@
 	text-align: center;
 }
 
+/* Progress */
+.retain-progress {
+	height: 3px;
+	flex-shrink: 0;
+	background: var(--background-modifier-border);
+}
+
+.retain-progress-fill {
+	height: 100%;
+	width: var(--retain-progress);
+	background: var(--interactive-accent);
+	transition: width 200ms ease;
+}
+
 /* Review card */
 .retain-card {
 	flex: 1;
+	display: flex;
+	flex-direction: column;
 	overflow-y: auto;
 	padding: var(--size-4-8) var(--size-4-8) var(--size-4-4);
 	font-size: calc(var(--font-text-size) * 1.1);
 	user-select: text;
+}
+
+/* Auto margins center short cards vertically but still let long ones scroll from the top. */
+.retain-card-inner {
+	margin: auto 0;
+	width: 100%;
 }
 
 .retain-question,
@@ -252,6 +283,10 @@
 	opacity: 0.5;
 }
 
+.mod-cta .retain-button-key {
+	opacity: 0.8;
+}
+
 .retain-grade-1:not(.mod-cta) .retain-button-text {
 	color: var(--color-red);
 }
@@ -290,7 +325,7 @@
 .retain-editor {
 	display: flex;
 	flex-direction: column;
-	gap: var(--size-4-2);
+	gap: var(--size-4-4);
 	font-size: var(--font-ui-medium);
 }
 
@@ -299,11 +334,40 @@
 	font-size: var(--font-ui-small);
 }
 
+.retain-edit-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+}
+
 .retain-edit-input {
 	width: 100%;
-	min-height: 4.5em;
+	min-height: 3em;
 	resize: vertical;
-	font-family: var(--font-text);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+}
+
+.retain-edit-preview {
+	padding: var(--size-4-2) var(--size-4-3);
+	border-left: 2px solid var(--interactive-accent);
+	background: var(--background-secondary);
+	border-radius: 0 var(--radius-s) var(--radius-s) 0;
+	font-size: var(--font-text-size);
+	overflow-x: auto;
+}
+
+.retain-edit-preview > :first-child {
+	margin-top: 0;
+}
+
+.retain-edit-preview > :last-child {
+	margin-bottom: 0;
+}
+
+.retain-edit-preview.is-empty {
+	color: var(--text-faint);
+	font-style: italic;
 }
 
 .retain-edit-hint {
@@ -404,7 +468,10 @@
 	display: none;
 }
 
+.is-phone .retain-deck-list {
+	--retain-col: 3.25rem;
+}
+
 .is-phone .retain-deck-row {
 	padding: var(--size-4-2);
-	grid-template-columns: 1fr repeat(3, 3em);
 }

@@ -17,6 +17,8 @@ export default class RetainPlugin extends Plugin {
 	readonly listeners = new Set<() => void>();
 	private statusEl!: HTMLElement;
 	private requestSave = debounce(() => void this.saveData(this.db), 1000, true);
+	/** Typing a new tag or separator triggers one rescan once typing stops. */
+	private requestRescan = debounce(() => void this.rescan(false), 1000, true);
 
 	async onload(): Promise<void> {
 		this.db = normalizeData(await this.loadData());
@@ -83,7 +85,7 @@ export default class RetainPlugin extends Plugin {
 	async saveSettings(rescan = false): Promise<void> {
 		this.scheduler.configure(this.db.settings);
 		await this.saveData(this.db);
-		if (rescan) await this.rescan(false);
+		if (rescan) this.requestRescan();
 	}
 
 	async rescan(notify: boolean): Promise<void> {

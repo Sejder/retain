@@ -1,97 +1,111 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, SettingDefinitionItem } from "obsidian";
 import type RetainPlugin from "../main";
+import type { RetainSettings } from "../settings";
 
+type Key = keyof RetainSettings;
+
+/** Declarative settings, so they show up in Obsidian's settings search. */
 export class RetainSettingTab extends PluginSettingTab {
-	constructor(app: App, private plugin: RetainPlugin) {
+	constructor(
+		app: App,
+		private plugin: RetainPlugin,
+	) {
 		super(app, plugin);
+		this.icon = "layers";
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-		const s = this.plugin.db.settings;
-		const save = async (rescan = false) => {
-			await this.plugin.saveSettings(rescan);
-		};
+	getSettingDefinitions(): SettingDefinitionItem<Key>[] {
+		return [
+			{
+				type: "group",
+				heading: "Cards",
+				items: [
+					{
+						name: "Flashcard tag",
+						desc: "Put this tag on a heading (or anywhere in a note) to mark flashcards. Subtags like #flashcards/spanish become nested decks.",
+						aliases: ["deck", "tag"],
+						control: {
+							type: "text",
+							key: "tag",
+							placeholder: "#flashcards",
+							validate: (v) => (v.trim().replace(/^#/, "") ? undefined : "Enter a tag"),
+						},
+					},
+					{
+						name: "Separator",
+						desc: "Separates question and answer on one line.",
+						control: {
+							type: "text",
+							key: "separator",
+							placeholder: "::",
+							validate: (v) => (v.trim() ? undefined : "Enter a separator"),
+						},
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: "Scheduling",
+				items: [
+					{
+						name: "New cards per day",
+						desc: "Per deck.",
+						aliases: ["limit"],
+						control: { type: "number", key: "newPerDay", min: 0, step: 1 },
+					},
+					{
+						name: "Target retention",
+						desc: "Probability of recalling a card when it comes due. Higher means more reviews.",
+						aliases: ["fsrs", "retention"],
+						control: {
+							type: "slider",
+							key: "retention",
+							min: 0.7,
+							max: 0.99,
+							step: 0.01,
+							displayFormat: (v) => `${Math.round(v * 100)}%`,
+						},
+					},
+					{
+						name: "Maximum interval",
+						desc: "Longest gap between reviews, in days.",
+						control: { type: "number", key: "maxInterval", min: 1, step: 1 },
+					},
+					{
+						name: "Fuzz intervals",
+						desc: "Slightly randomize intervals so cards added together don't stay bunched up.",
+						control: { type: "toggle", key: "fuzz" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: "Review",
+				items: [
+					{
+						name: "Show interval previews",
+						desc: "Show the next interval on each grade button.",
+						control: { type: "toggle", key: "showPreviews" },
+					},
+				],
+			},
+		];
+	}
 
-		new Setting(containerEl)
-			.setName("Flashcard tag")
-			.setDesc("Put this tag on a heading (or anywhere in a note) to mark flashcards. Subtags like #flashcards/ml/w01 become nested decks.")
-			.addText((t) =>
-				t.setPlaceholder("#flashcards").setValue(s.tag).onChange(async (v) => {
-					const tag = v.trim();
-					if (!tag) return;
-					s.tag = tag.startsWith("#") ? tag : `#${tag}`;
-					await save(true);
-				}),
-			);
+	getControlValue(key: string): unknown {
+		return this.plugin.db.settings[key as Key];
+	}
 
-		new Setting(containerEl)
-			.setName("Separator")
-			.setDesc("Separates question and answer on one line.")
-			.addText((t) =>
-				t.setPlaceholder("::").setValue(s.separator).onChange(async (v) => {
-					if (!v) return;
-					s.separator = v;
-					await save(true);
-				}),
-			);
-
-		new Setting(containerEl)
-			.setName("New cards per day")
-			.setDesc("Per deck.")
-			.addText((t) =>
-				t.setValue(String(s.newPerDay)).onChange(async (v) => {
-					const n = parseInt(v, 10);
-					if (Number.isNaN(n) || n < 0) return;
-					s.newPerDay = n;
-					await save();
-				}),
-			);
-
-		new Setting(containerEl)
-			.setName("Target retention")
-			.setDesc("Probability of recalling a card when it comes due. Higher means more reviews.")
-			.addSlider((sl) =>
-				sl
-					.setLimits(0.7, 0.99, 0.01)
-					.setValue(s.retention)
-					.setDynamicTooltip()
-					.onChange(async (v) => {
-						s.retention = v;
-						await save();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Maximum interval (days)")
-			.addText((t) =>
-				t.setValue(String(s.maxInterval)).onChange(async (v) => {
-					const n = parseInt(v, 10);
-					if (Number.isNaN(n) || n < 1) return;
-					s.maxInterval = n;
-					await save();
-				}),
-			);
-
-		new Setting(containerEl)
-			.setName("Fuzz intervals")
-			.setDesc("Slightly randomize intervals so cards added together don't stay bunched up.")
-			.addToggle((t) =>
-				t.setValue(s.fuzz).onChange(async (v) => {
-					s.fuzz = v;
-					await save();
-				}),
-			);
-
-		new Setting(containerEl)
-			.setName("Show interval previews")
-			.setDesc("Show the next interval on each grade button.")
-			.addToggle((t) =>
-				t.setValue(s.showPreviews).onChange(async (v) => {
-					s.showPreviews = v;
-					await save();
-				}),
-			);
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const settings = this.plugin.db.settings as unknown as Record<string, unknown>;
+		if (key === "tag") {
+			const tag = String(value).trim();
+			if (!tag.replace(/^#/, "")) return;
+			value = tag.startsWith("#") ? tag : `#${tag}`;
+		}
+		if (key === "separator" && !String(value)) return;
+		if (typeof value === "number" && Number.isNaN(value)) return;
+		settings[key] = value;
+		await this.plugin.saveSettings(key === "tag" || key === "separator");
 	}
 }

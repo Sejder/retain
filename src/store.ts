@@ -3,18 +3,7 @@ import type { ParsedCard } from "./parser";
 import { DEFAULT_SETTINGS, RetainSettings } from "./settings";
 
 /** FSRS card with dates as ISO strings, as kept in data.json. */
-export interface StoredFsrs {
-	due: string;
-	stability: number;
-	difficulty: number;
-	elapsed_days: number;
-	scheduled_days: number;
-	learning_steps: number;
-	reps: number;
-	lapses: number;
-	state: State;
-	last_review?: string;
-}
+export type StoredFsrs = Omit<Card, "due" | "last_review"> & { due: string; last_review?: string };
 
 export interface StoredCard {
 	fsrs: StoredFsrs;
@@ -33,7 +22,6 @@ export interface LogEntry {
 	review: string;
 	due: string;
 	scheduledDays: number;
-	elapsedDays: number;
 }
 
 export interface RetainData {
@@ -120,22 +108,13 @@ export function similarity(a: string, b: string): number {
 }
 
 export function serializeCard(c: Card): StoredFsrs {
-	return {
-		due: c.due.toISOString(),
-		stability: c.stability,
-		difficulty: c.difficulty,
-		elapsed_days: c.elapsed_days,
-		scheduled_days: c.scheduled_days,
-		learning_steps: c.learning_steps,
-		reps: c.reps,
-		lapses: c.lapses,
-		state: c.state,
-		last_review: c.last_review?.toISOString(),
-	};
+	return { ...c, due: c.due.toISOString(), last_review: c.last_review?.toISOString() };
 }
 
 export function deserializeCard(s: StoredFsrs): Card {
+	// Spread over an empty card so fields missing from older data get defaults.
 	return {
+		...createEmptyCard(new Date(s.due)),
 		...s,
 		due: new Date(s.due),
 		last_review: s.last_review ? new Date(s.last_review) : undefined,
@@ -302,7 +281,6 @@ export class CardStore {
 			review: log.review.toISOString(),
 			due: log.due.toISOString(),
 			scheduledDays: log.scheduled_days,
-			elapsedDays: log.elapsed_days,
 		});
 	}
 

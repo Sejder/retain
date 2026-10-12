@@ -24,7 +24,7 @@ Write cards as plain `Question::Answer` lines. Retain schedules them with [FSRS]
 - **Decks from tags.** Tag a heading with `#flashcards/languages/spanish` and every card under it goes into that deck. Nested tags become nested decks.
 - **Keyboard-driven reviews:** <kbd>Space</kbd> shows the answer, <kbd>1</kbd>–<kbd>4</kbd> grade it, <kbd>U</kbd> undoes.
 - **Cram mode** goes through a whole deck without touching its schedule.
-- **Edit in place** from the review screen, or jump to the card in its note.
+- **Edit in place** from the review screen, with a live rendered preview of the LaTeX and markdown as you type. Or jump to the card in its note.
 - **Daily new-card limit** per deck.
 - **Stats:** reviews per day, true retention and a 30-day due forecast.
 - **Status bar** count of cards due.
@@ -35,6 +35,8 @@ Write cards as plain `Question::Answer` lines. Retain schedules them with [FSRS]
   &nbsp;&nbsp;
   <img src="docs/mobile-decks.png" alt="Deck list on a phone" width="260">
 </p>
+
+<p align="center"><img src="docs/edit-dark.png" alt="Editing a card with live LaTeX preview" width="720"></p>
 
 ## Writing cards
 
@@ -57,7 +59,7 @@ Period of a simple pendulum?::$T = 2\pi\sqrt{L/g}$
 - Lines outside a tagged scope are never treated as cards, so Dataview `key:: value` fields are safe.
 - List items work too, e.g. `- question::answer`.
 
-The tag and the separator can be changed in settings.
+The tag, the separator and the scheduling options are under Settings → Retain, and they also show up in Obsidian's settings search.
 
 ## Where your data lives
 
@@ -72,6 +74,10 @@ Review state is stored in `.obsidian/plugins/retain/data.json`, keyed by a hash 
 | Delete a card | Keeps its history for 30 days (in case you undo), then removes it |
 
 The data file syncs with the rest of your `.obsidian` folder (Obsidian Sync, iCloud, Nextcloud, git…).
+
+## Privacy
+
+Retain makes no network requests. To build the card index, it lists the markdown files in your vault and reads only the notes that carry your flashcard tag, using Obsidian's metadata cache to tell them apart. Nothing leaves your device.
 
 ## Commands
 
@@ -104,6 +110,14 @@ The data file syncs with the rest of your `.obsidian` folder (Obsidian Sync, iCl
 
 **Manually:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Sejder/retain/releases/latest) into `<vault>/.obsidian/plugins/retain/`, then enable the plugin under Community plugins.
 
+Requires Obsidian 1.13 or later.
+
+GitHub Actions builds release files from the tagged source and signs them with [build provenance attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations). To check a download:
+
+```sh
+gh attestation verify main.js --repo Sejder/retain
+```
+
 ## Development
 
 The repo includes a [devenv](https://devenv.sh) environment. Entering the directory activates it and installs the dependencies. Without devenv, any Node 22 works.
@@ -113,6 +127,8 @@ npm run dev      # rebuild on change and copy into $VAULT/.obsidian/plugins/reta
 npm test         # unit tests (parser, card store, queue)
 npm run build    # type-check + production bundle
 ```
+
+To release, bump the version in `manifest.json`, `package.json` and `versions.json`, then push a matching tag (e.g. `git tag 0.2.0 && git push --tags`). The release workflow tests, builds, attests and publishes it.
 
 Set `VAULT` to your test vault, for example in a `devenv.local.nix` containing `{ env.VAULT = "/path/to/vault"; }`. That file is gitignored. With `VAULT` set, `npm test` also parses your vault as a sanity check.
 

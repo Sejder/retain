@@ -1,6 +1,6 @@
 {
 	"name": "retain",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Minimal FSRS flashcard plugin for Obsidian",
 	"main": "main.js",
 	"type": "module",
@@ -16,7 +16,6 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^22.0.0",
-		"builtin-modules": "^5.0.0",
 		"esbuild": "^0.28.0",
 		"obsidian": "^1.14.0",
 		"ts-fsrs": "^5.4.2",

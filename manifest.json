@@ -1,0 +1,10 @@
+{
+	"id": "retain",
+	"name": "Retain",
+	"version": "0.1.0",
+	"minAppVersion": "1.5.0",
+	"description": "Minimal FSRS flashcards from Q::A lines, with review data kept out of your notes.",
+	"author": "Mikkel Sejdelin",
+	"isDesktopOnly": false,
+	"authorUrl": "https://github.com/Sejder"
+}

@@ -1,0 +1,8 @@
+node_modules/
+main.js
+.devenv*
+devenv.local.nix
+demo/.seed.mjs
+demo/vault/.obsidian/plugins/
+demo/vault/.obsidian/workspace*.json
+screenshots-raw/

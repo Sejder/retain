@@ -133,6 +133,11 @@ async function attachTo(match, timeout = 10000) {
 	throw new Error("pop-out window not found");
 }
 
+// Viewport sizes as "WIDTHxHEIGHT@SCALE". STORE=1 gives the community directory's 1200x800 and 900x1600.
+const STORE = !!process.env.STORE;
+const DESKTOP = (process.env.DESKTOP ?? (STORE ? "1200x800@1" : "1280x820@2")).match(/(\d+)x(\d+)@(\d+)/).slice(1).map(Number);
+const MOBILE = (process.env.MOBILE ?? (STORE ? "450x800@2" : "390x844@3")).match(/(\d+)x(\d+)@(\d+)/).slice(1).map(Number);
+
 async function viewport(width, height, scale, mobile = false) {
 	await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: scale, mobile });
 	await sleep(300);
@@ -162,6 +167,8 @@ async function check(label) {
 	else {
 		if (facts.closeButtons !== 1) problems.push(`${facts.closeButtons} close buttons`);
 		if (!facts.inViewport) problems.push(`modal outside viewport ${facts.rect}`);
+		const [, top, , bottom, , vh] = facts.rect;
+		if (label.startsWith("mobile") && bottom - top < vh - 2) problems.push(`not full screen on phone ${facts.rect}`);
 		if (facts.overflowX.length) problems.push(`horizontal overflow: ${facts.overflowX.join(", ")}`);
 	}
 	console.log(`  check ${label}: ${problems.length ? "FAIL " + problems.join("; ") : "ok"}`);
@@ -207,7 +214,7 @@ const theme = async (t) => {
 let ok = true;
 try {
 	await boot();
-	await viewport(1280, 820, 2);
+	await viewport(...DESKTOP);
 	await openNote("Science/Physics.md");
 
 	for (const t of ["obsidian", "moonstone"]) {
@@ -326,7 +333,7 @@ try {
 	await sleep(1500);
 	ws.close();
 	await boot();
-	await viewport(390, 844, 3, true);
+	await viewport(...MOBILE, true);
 	await theme("obsidian");
 	await js("app.commands.executeCommandById('retain:review')");
 	await waitFor("document.querySelector('.retain-deck-row:not(.retain-deck-head)')");
@@ -336,10 +343,21 @@ try {
 	await openNote("Science/Physics.md");
 	await js("app.commands.executeCommandById('retain:review-current-note')");
 	await waitFor("document.querySelector('.retain-question')");
+	await shot("mobile-question");
 	await click(".retain-actions button");
 	await waitFor("document.querySelector('.retain-answer')");
 	ok = (await check("mobile answer")) && ok;
 	await shot("mobile-answer");
+	await key("e");
+	await waitFor("document.querySelector('.retain-editor textarea')");
+	ok = (await check("mobile editor")) && ok;
+	await js("document.activeElement?.blur()");
+	await shot("mobile-edit");
+	await closeModals();
+	await js("app.commands.executeCommandById('retain:stats')");
+	await waitFor("document.querySelector('.retain-bars')");
+	ok = (await check("mobile stats")) && ok;
+	await shot("mobile-stats");
 	await js("app.emulateMobile(false)").catch(() => {});
 } catch (e) {
 	ok = false;

@@ -1,6 +1,6 @@
 {
 	"name": "retain",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Minimal FSRS flashcard plugin for Obsidian",
 	"main": "main.js",
 	"type": "module",

@@ -3,7 +3,7 @@ import { createEmptyCard, fsrs, Rating, State } from "ts-fsrs";
 import type { ParsedCard } from "../src/parser";
 import { CardStore, emptyData, hashId, ORPHAN_DAYS, similarity } from "../src/store";
 
-const card = (question: string, line = 0, deck = "d"): ParsedCard => ({ question, answer: "a", deck, line });
+const card = (question: string, line = 0, deck = "d"): ParsedCard => ({ question, answer: "a", deck, line, endLine: line });
 const f = fsrs();
 const NOW = new Date("2026-10-12T10:00:00Z");
 

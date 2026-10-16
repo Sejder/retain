@@ -62,6 +62,32 @@ Period of a simple pendulum?::$T = 2\pi\sqrt{L/g}$
 - Lines outside a tagged scope are never treated as cards, so Dataview `key:: value` fields are safe.
 - List items work too, e.g. `- question::answer`.
 
+### Multiline cards
+
+For lists, code or several lines, put `::` on a line of its own. Everything above it in the paragraph is the question, everything below is the answer:
+
+````markdown
+## Sorting #flashcards/cs/algorithms
+What are the steps of merge sort?
+::
+1. Split the list in half
+2. Sort each half recursively
+3. Merge the two sorted halves
+
+What does this print?
+```python
+print([x * 2 for x in range(3)])
+```
+::
+`[0, 2, 4]`
+````
+
+- A blank line or a heading ends the card, so leave blank lines out of the answer. Blank lines inside code blocks and `$$` math blocks are fine.
+- A paragraph that already has a `question::answer` line, or more than one `::` line, isn't a multiline card. Put a blank line between cards.
+- In the ✏️ editor, adding a line break turns a card into a multiline card.
+
+<p align="center"><img src="docs/multiline-answer-dark.png" alt="Reviewing a multiline card with a Python code block" width="720"></p>
+
 The tag, the separator and the scheduling options are under Settings → Retain, and they also show up in Obsidian's settings search.
 
 ## Where your data lives

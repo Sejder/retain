@@ -90,11 +90,62 @@ describe("parseNote", () => {
 	});
 
 	it("uses frontmatter tags", () => {
-		expect(parseNote("Q::A", opts, ["#flashcards/fm"])).toEqual([{ question: "Q", answer: "A", deck: "fm", line: 0 }]);
+		expect(parseNote("Q::A", opts, ["#flashcards/fm"])).toEqual([{ question: "Q", answer: "A", deck: "fm", line: 0, endLine: 0 }]);
 	});
 
 	it("ignores untagged notes", () => {
 		expect(parseNote("Q::A\nkey:: value", opts)).toEqual([]);
+	});
+});
+
+describe("block cards", () => {
+	const parse = (body: string) => parseNote(`#flashcards\n\n${body}`, opts);
+	const qa = (body: string) => parse(body).map((c) => [c.question, c.answer]);
+
+	it("splits a paragraph at a bare separator line", () => {
+		const cards = parse("Steps of merge sort?\n::\n1. Split\n2. Sort\n3. Merge");
+		expect(cards).toEqual([
+			{ question: "Steps of merge sort?", answer: "1. Split\n2. Sort\n3. Merge", deck: "default", line: 2, endLine: 6 },
+		]);
+	});
+
+	it("keeps code and math blocks, including blank lines inside them", () => {
+		const body = "What prints?\n```python\nxs = [1, 2]\n\nprint(sum(xs))\n```\n::\n$$\n3\n$$";
+		expect(qa(body)).toEqual([["What prints?\n```python\nxs = [1, 2]\n\nprint(sum(xs))\n```", "$$\n3\n$$"]]);
+	});
+
+	it("mixes with single-line cards in separate paragraphs", () => {
+		expect(qa("a::b\n\nDefine a heap.\n::\nA tree\n\nc::d")).toEqual([
+			["a", "b"],
+			["Define a heap.", "A tree"],
+			["c", "d"],
+		]);
+	});
+
+	it("ends at a heading", () => {
+		expect(qa("Q\n::\nA\n## Next\nmore text")).toEqual([["Q", "A"]]);
+	});
+
+	it("ends at a blank line", () => {
+		expect(qa("Q\n::\nfirst\n\nsecond")).toEqual([["Q", "first"]]);
+	});
+
+	it("is not formed when the paragraph also has single-line cards", () => {
+		expect(qa("a::b\nnote to self\n::\nc")).toEqual([["a", "b"]]);
+	});
+
+	it("is not formed with two separator lines or an empty side", () => {
+		expect(qa("Q\n::\nA\n::\nB")).toEqual([]);
+		expect(qa("Q\n::")).toEqual([]);
+		expect(qa("::\nA")).toEqual([]);
+	});
+
+	it("ignores a separator line inside a code block", () => {
+		expect(qa("Q\n```\n::\n```\nA")).toEqual([]);
+	});
+
+	it("stays out of untagged scopes", () => {
+		expect(parseNote("Q\n::\nA", opts)).toEqual([]);
 	});
 });
 

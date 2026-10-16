@@ -1,5 +1,5 @@
 import { debounce, getAllTags, MarkdownView, Notice, parseFrontMatterTags, Plugin, TAbstractFile, TFile } from "obsidian";
-import { deckFromTag, listPrefix, parseNote, splitCard, tagBase } from "./parser";
+import { deckFromTag, listPrefix, parseNote, tagBase } from "./parser";
 import { Scheduler } from "./scheduler";
 import { RetainSettingTab } from "./ui/SettingTab";
 import { CardStore, LiveCard, normalizeData, RetainData } from "./store";
@@ -145,32 +145,56 @@ export default class RetainPlugin extends Plugin {
 		if (leaf.view instanceof MarkdownView) {
 			const pos = { line: card.line, ch: 0 };
 			leaf.view.editor.setCursor(pos);
-			leaf.view.editor.scrollIntoView({ from: pos, to: pos }, true);
+			leaf.view.editor.scrollIntoView({ from: pos, to: { line: card.endLine, ch: 0 } }, true);
 		}
 	}
 
-	/** Rewrites a card's line in its note and keeps its review state. Returns the updated card. */
+	/**
+	 * Rewrites a card in its note and keeps its review state. Returns the updated card.
+	 * A line break in either side turns a single-line card into a block card.
+	 */
 	async editCard(card: LiveCard, question: string, answer: string): Promise<LiveCard | null> {
 		const file = this.app.vault.getAbstractFileByPath(card.path);
 		if (!(file instanceof TFile)) return null;
-		const sep = this.db.settings.separator;
-		const parsed = splitCard(`${question}${sep}${answer}`, sep);
-		if (!parsed || parsed.question !== question.trim() || parsed.answer !== answer.trim()) {
-			new Notice(`The question can't contain "${sep}", and neither side can be empty.`);
+		const opts = { tag: this.db.settings.tag, separator: this.db.settings.separator };
+		const sep = opts.separator;
+		question = question.trim();
+		answer = answer.trim();
+		const block = card.endLine > card.line || question.includes("\n") || answer.includes("\n");
+		const body = block ? `${question}\n${sep}\n${answer}` : `${question}${sep}${answer}`;
+		// The new text must parse back to exactly this card.
+		const check = parseNote(`#${tagBase(opts.tag)}\n\n${body}`, opts);
+		if (check.length !== 1 || check[0].question !== question || check[0].answer !== answer) {
+			new Notice(
+				block
+					? `Neither side can be empty, contain a blank line outside code blocks, or contain "${sep}".`
+					: `The question can't contain "${sep}", and neither side can be empty.`,
+			);
 			return null;
 		}
 
+		const fmTags = parseFrontMatterTags(this.app.metadataCache.getFileCache(file)?.frontmatter) ?? [];
 		let line = -1;
 		const text = await this.app.vault.process(file, (data) => {
+			const same = (c: { question: string; answer: string }) => c.question === card.question && c.answer === card.answer;
+			const found = parseNote(data, opts, fmTags).filter(same);
+			const old = found.find((c) => c.line === card.line) ?? found[0];
+			if (!old) return data;
 			const lines = data.split("\n");
-			const same = (l: string) => {
-				const c = splitCard(l.replace(/\r$/, ""), sep);
-				return c !== null && c.question === card.question && c.answer === card.answer;
-			};
-			line = lines[card.line] !== undefined && same(lines[card.line]) ? card.line : lines.findIndex(same);
-			if (line < 0) return data;
-			const cr = lines[line].endsWith("\r") ? "\r" : "";
-			lines[line] = `${listPrefix(lines[line])}${parsed.question}${sep}${parsed.answer}${cr}`;
+			const cr = lines[old.line].endsWith("\r") ? "\r" : "";
+			let replacement: string[];
+			if (!block) {
+				replacement = [`${listPrefix(lines[old.line])}${question}${sep}${answer}`];
+			} else {
+				replacement = body.split("\n");
+				// A single-line card turning into a block needs blank lines around it to be its own paragraph.
+				if (old.endLine === old.line) {
+					if (old.line > 0 && lines[old.line - 1].trim()) replacement.unshift("");
+					if (old.line + 1 < lines.length && lines[old.line + 1].trim()) replacement.push("");
+				}
+			}
+			line = replacement[0] === "" ? old.line + 1 : old.line;
+			lines.splice(old.line, old.endLine - old.line + 1, ...replacement.map((l) => l + cr));
 			return lines.join("\n");
 		});
 		if (line < 0) {

@@ -1,4 +1,4 @@
-import { App, DropdownComponent, Modal, Notice, Platform, setIcon } from "obsidian";
+import { App, DropdownComponent, Modal, Notice, Platform, Scope, setIcon } from "obsidian";
 import type RetainPlugin from "../main";
 import { CardFilter, DeckNode, deckTree } from "../queue";
 import { localDate } from "../store";
@@ -42,6 +42,13 @@ export class RetainModal extends Modal {
 		private initial?: { filter: CardFilter; label: string },
 	) {
 		super(app);
+		// A fresh scope instead of Modal's: its built-in Escape handler runs first and would close
+		// the whole modal, even while a card is being edited.
+		this.scope = new Scope();
+		this.scope.register([], "Escape", (evt) => {
+			if (this.review?.handleKey(evt) !== false) this.close();
+			return false;
+		});
 		this.scope.register(null, null, (evt) => (this.review ? this.review.handleKey(evt) : true));
 	}
 

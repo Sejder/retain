@@ -56,6 +56,8 @@ export class ReviewView {
 	/** Keyboard handling; returns false when the key was used. */
 	handleKey(evt: KeyboardEvent): boolean {
 		const target = evt.target as HTMLElement | null;
+		// The modal's own Escape handler would close the whole review, so leave the editor here instead.
+		if (this.editing && evt.key === "Escape") return this.stopEditing(), false;
 		if (this.editing || target?.closest("input, textarea, select")) return true;
 		const mod = evt.ctrlKey || evt.metaKey;
 		if (mod && evt.key.toLowerCase() === "z") return this.undo(), false;
@@ -145,6 +147,11 @@ export class ReviewView {
 		this.render();
 	}
 
+	private stopEditing(): void {
+		this.editing = false;
+		this.render();
+	}
+
 	private render(): void {
 		this.component.unload();
 		this.component = new Component();
@@ -230,20 +237,12 @@ export class ReviewView {
 			new Notice("Card updated");
 			this.render();
 		};
-		const cancel = () => {
-			this.editing = false;
-			this.render();
-		};
 		const actions = this.el.createDiv("retain-actions");
-		new ButtonRow(actions).button("Cancel", false, cancel).button("Save", true, () => void save());
+		new ButtonRow(actions).button("Cancel", false, () => this.stopEditing()).button("Save", true, () => void save());
 		form.addEventListener("keydown", (e) => {
 			if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
 				e.preventDefault();
 				void save();
-			} else if (e.key === "Escape") {
-				e.preventDefault();
-				e.stopPropagation();
-				cancel();
 			}
 		});
 		window.setTimeout(() => q.focus(), 0);

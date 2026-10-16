@@ -279,14 +279,26 @@ try {
 	await theme("obsidian");
 	await js("app.commands.executeCommandById('retain:review-current-note')");
 	await waitFor("document.querySelector('.retain-question')");
-	const first = await js("document.querySelector('.retain-question').textContent");
+	// Compare review state, not the next card's text: with one card left, learn-ahead shows the same card again.
+	const reviewState = () =>
+		js(`JSON.stringify({ q: document.querySelector('.retain-question')?.textContent, revealed: !!document.querySelector('.retain-answer'), log: app.plugins.plugins.retain.db.log.length })`).then(JSON.parse);
+	const before = await reviewState();
 	await key(" ");
 	await key("3");
-	const second = await js("document.querySelector('.retain-question')?.textContent");
+	const graded = await reviewState();
 	await key("u");
-	const afterUndo = await js("document.querySelector('.retain-question').textContent");
-	console.log(`  undo returns to first card: ${afterUndo === first && second !== first ? "ok" : "FAIL"}`);
-	ok = ok && afterUndo === first;
+	const undone = await reviewState();
+	const undoOk = graded.log === before.log + 1 && undone.log === before.log && undone.q === before.q && !undone.revealed;
+	console.log(`  undo reverts the grade: ${undoOk ? "ok" : "FAIL " + JSON.stringify({ before, graded, undone })}`);
+	ok = ok && undoOk;
+
+	await key("e");
+	await waitFor("document.querySelector('.retain-editor textarea')");
+	await key("Escape");
+	const escapeOk = await js("!!document.querySelector('.retain-modal') && !document.querySelector('.retain-editor') && !!document.querySelector('.retain-question')");
+	console.log(`  Escape leaves the editor, not the review: ${escapeOk ? "ok" : "FAIL"}`);
+	ok = ok && escapeOk;
+	if (!escapeOk) await js("app.commands.executeCommandById('retain:review-current-note')");
 
 	await key("e");
 	await waitFor("document.querySelector('.retain-editor textarea')");

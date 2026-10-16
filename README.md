@@ -4,6 +4,9 @@
 
 Write cards as plain `Question::Answer` lines. Retain schedules them with [FSRS](https://github.com/open-spaced-repetition/ts-fsrs), the algorithm modern Anki uses. All review data lives in the plugin's own data file, so your notes never get scheduling comments or IDs appended to them.
 
+> [!NOTE]
+> Retain is still before 1.0, so the card format, settings and data file may still change. We try hard to avoid changes that break your notes or review history. If one is ever needed, the release notes will say so and Retain will migrate your data for you.
+
 ![Deck list](docs/decks-dark.png)
 
 <table>

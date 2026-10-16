@@ -86,6 +86,8 @@ print([x * 2 for x in range(3)])
 - A paragraph that already has a `question::answer` line, or more than one `::` line, isn't a multiline card. Put a blank line between cards.
 - In the ✏️ editor, adding a line break turns a card into a multiline card.
 
+<p align="center"><img src="docs/multiline-answer-dark.png" alt="Reviewing a multiline card with a Python code block" width="720"></p>
+
 The tag, the separator and the scheduling options are under Settings → Retain, and they also show up in Obsidian's settings search.
 
 ## Where your data lives

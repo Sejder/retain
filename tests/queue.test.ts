@@ -6,7 +6,7 @@ import { CardStore, emptyData, hashId } from "../src/store";
 
 const NOW = new Date("2026-10-12T10:00:00Z");
 const TODAY = "2026-10-12";
-const card = (question: string, deck: string, line: number): ParsedCard => ({ question, answer: "a", deck, line });
+const card = (question: string, deck: string, line: number): ParsedCard => ({ question, answer: "a", deck, line, endLine: line });
 
 function setup() {
 	const s = new CardStore(emptyData());

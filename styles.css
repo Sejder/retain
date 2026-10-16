@@ -228,6 +228,34 @@
 	margin-top: 0;
 }
 
+/* Lists, code and tables from multiline cards keep left-aligned text but sit centered as a block. */
+.retain-question :is(ul, ol, pre, blockquote, table),
+.retain-answer :is(ul, ol, pre, blockquote, table) {
+	width: fit-content;
+	max-width: 100%;
+	margin-left: auto;
+	margin-right: auto;
+	text-align: left;
+}
+
+.retain-question pre,
+.retain-answer pre {
+	position: relative;
+	padding: var(--size-4-3) var(--size-4-4);
+	border-radius: var(--code-radius, var(--radius-s));
+	background: var(--code-background);
+	font-size: var(--code-size);
+	overflow-x: auto;
+}
+
+.retain-question pre .copy-code-button,
+.retain-answer pre .copy-code-button {
+	position: absolute;
+	top: var(--size-4-1);
+	right: var(--size-4-1);
+	margin: 0;
+}
+
 .retain-card hr {
 	max-width: 680px;
 	margin: var(--size-4-6) auto;

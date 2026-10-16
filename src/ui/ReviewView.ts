@@ -221,11 +221,10 @@ export class ReviewView {
 		const form = this.el.createDiv("retain-card retain-editor");
 		const q = this.editField(form, "Question", card.question, card.path);
 		const a = this.editField(form, "Answer", card.answer, card.path);
-		form.createDiv({ cls: "retain-edit-hint", text: "Cards are single-line; line breaks become spaces. Ctrl/Cmd+Enter saves." });
+		form.createDiv({ cls: "retain-edit-hint", text: "A line break makes it a multiline card. Ctrl/Cmd+Enter saves." });
 
 		const save = async () => {
-			const oneLine = (s: string) => s.replace(/\s*\n\s*/g, " ").trim();
-			const updated = await this.plugin.editCard(card, oneLine(q.value), oneLine(a.value));
+			const updated = await this.plugin.editCard(card, q.value, a.value);
 			if (!updated) return;
 			for (const e of this.undoStack) {
 				if (e.id !== card.id) continue;
@@ -252,7 +251,7 @@ export class ReviewView {
 	private editField(form: HTMLElement, label: string, value: string, path: string): HTMLTextAreaElement {
 		const field = form.createDiv("retain-edit-field");
 		field.createEl("label", { text: label });
-		const input = field.createEl("textarea", { cls: "retain-edit-input", attr: { rows: "2", "aria-label": label } });
+		const input = field.createEl("textarea", { cls: "retain-edit-input", attr: { rows: String(Math.min(8, Math.max(2, value.split("\n").length))), "aria-label": label } });
 		input.value = value;
 		const preview = field.createDiv({ cls: "retain-edit-preview markdown-rendered", attr: { "aria-label": `${label} preview` } });
 		let rendered: Component | null = null;
@@ -260,7 +259,7 @@ export class ReviewView {
 			if (rendered) this.component.removeChild(rendered);
 			rendered = this.component.addChild(new Component());
 			preview.empty();
-			const md = input.value.replace(/\s*\n\s*/g, " ").trim();
+			const md = input.value.trim();
 			preview.toggleClass("is-empty", !md);
 			if (md) void MarkdownRenderer.render(this.plugin.app, md, preview, path, rendered);
 			else preview.setText("Nothing to preview");

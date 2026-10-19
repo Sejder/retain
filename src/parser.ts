@@ -11,6 +11,8 @@ export interface ParsedCard {
 	deck: string;
 	/** 0-based line number in the note. */
 	line: number;
+	/** Last line of the card; equals `line` for single-line cards. */
+	endLine: number;
 }
 
 const TAG_RE = /(?:^|\s)#([\p{L}\p{N}_\-/]+)/gu;
@@ -72,7 +74,7 @@ export function splitCard(line: string, sep: string): { question: string; answer
 }
 
 /**
- * Finds single-line cards in a note. Only lines inside a flashcard-tagged scope count:
+ * Finds single-line and block cards in a note. Only lines inside a flashcard-tagged scope count:
  * under a heading carrying the tag (until the next heading of the same or higher level),
  * or anywhere when the note itself carries the tag (frontmatter or a body line).
  */
@@ -93,6 +95,7 @@ export function parseNote(text: string, opts: ParseOptions, frontmatterTags: str
 			}
 		}
 	}
+	const bodyStart = i;
 	let fence: string | null = null;
 	let inMath = false;
 	for (; i < lines.length; i++) {
@@ -131,21 +134,53 @@ export function parseNote(text: string, opts: ParseOptions, frontmatterTags: str
 
 	const cards: ParsedCard[] = [];
 	const scopes: { level: number; deck: string }[] = [];
-	for (let j = 0; j < lines.length; j++) {
-		if (skip[j]) continue;
+	// Paragraphs: runs of lines between blank lines and headings. Blank lines inside code or math don't split them.
+	let para: number[] = [];
+	const flush = () => {
+		const deck = scopes.length ? scopes[scopes.length - 1].deck : noteDeck;
+		if (deck !== null && para.length) cards.push(...paragraphCards(lines, para, skip, opts.separator, deck));
+		para = [];
+	};
+	for (let j = bodyStart; j < lines.length; j++) {
 		const line = lines[j];
-		const h = HEADING_RE.exec(line);
+		if (!skip[j] && !line.trim()) {
+			flush();
+			continue;
+		}
+		const h = skip[j] ? null : HEADING_RE.exec(line);
 		if (h) {
+			flush();
 			const level = h[1].length;
 			while (scopes.length && scopes[scopes.length - 1].level >= level) scopes.pop();
 			const deck = findDeckTag(h[2], base);
 			if (deck !== null) scopes.push({ level, deck });
 			continue;
 		}
-		const deck = scopes.length ? scopes[scopes.length - 1].deck : noteDeck;
-		if (deck === null) continue;
-		const card = splitCard(line, opts.separator);
-		if (card) cards.push({ ...card, deck, line: j });
+		para.push(j);
+	}
+	flush();
+	return cards;
+}
+
+/**
+ * Cards in one paragraph. A paragraph with exactly one bare separator line and no single-line
+ * cards is a block card: everything above the separator is the question, everything below the answer.
+ * Otherwise each line is checked as a single-line card.
+ */
+function paragraphCards(lines: string[], para: number[], skip: boolean[], sep: string, deck: string): ParsedCard[] {
+	const bare = para.filter((j) => !skip[j] && lines[j].trim() === sep);
+	const inline = para.filter((j) => !skip[j] && lines[j].trim() !== sep && findSeparator(lines[j], sep) >= 0);
+	if (bare.length === 1 && inline.length === 0) {
+		const k = para.indexOf(bare[0]);
+		const question = para.slice(0, k).map((j) => lines[j]).join("\n").trim();
+		const answer = para.slice(k + 1).map((j) => lines[j]).join("\n").trim();
+		if (!question || !answer) return [];
+		return [{ question, answer, deck, line: para[0], endLine: para[para.length - 1] }];
+	}
+	const cards: ParsedCard[] = [];
+	for (const j of inline) {
+		const card = splitCard(lines[j], sep);
+		if (card) cards.push({ ...card, deck, line: j, endLine: j });
 	}
 	return cards;
 }
